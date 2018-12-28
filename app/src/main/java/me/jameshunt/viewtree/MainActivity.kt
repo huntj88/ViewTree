@@ -18,32 +18,41 @@ class MainActivity : AppCompatActivity() {
             replacement = R.layout.view_top_bottom
         )
 
-        ViewTree.modifyTree(modify1)
+        ViewTree.modifyTree(modify1) {
 
-        this.findViewById<Button>(R.id.button).setOnClickListener {
-            val modify2 = ViewTree.Modify.Replace(
-                containerViewId = R.id.bottomView,
-                replacement = R.layout.view_form
-            )
-
-            ViewTree.modifyTree(modify2)
-
-            this.findViewById<Button>(R.id.wrapButton).setOnClickListener {
-                val modify3 = ViewTree.Modify.WrapExisting(
-                    viewIdToWrap = R.id.initialFrameLayout,
-                    layoutToWrapWith = R.layout.view_wrap,
-                    viewIdToPutOld = R.id.frameLayoutWrapper
+            this.findViewById<Button>(R.id.button).setOnClickListener {
+                val modify2 = ViewTree.Modify.Replace(
+                    containerViewId = R.id.bottomView,
+                    replacement = R.layout.view_form
                 )
 
-                ViewTree.modifyTree(modify3)
+                ViewTree.modifyTree(modify2) {
 
+                    this.findViewById<Button>(R.id.wrapButton).setOnClickListener {
+                        val modify3 = ViewTree.Modify.WrapExisting(
+                            viewIdToWrap = R.id.initialFrameLayout,
+                            layoutToWrapWith = R.layout.view_wrap,
+                            viewIdToPutOld = R.id.frameLayoutWrapper
+                        )
 
-                this.findViewById<Button>(R.id.button3).setOnClickListener {
-                    ViewTree.pop()
+                        ViewTree.modifyTree(modify3) {
+
+                            this.findViewById<Button>(R.id.button2).setOnClickListener {
+                                val modify4 = ViewTree.Modify.Replace(
+                                    containerViewId = R.id.initialFrameLayout,
+                                    replacement = R.layout.view_four
+                                )
+
+                                ViewTree.modifyTree(modify4)
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
 
-
+    override fun onBackPressed() {
+        ViewTree.pop()
     }
 }

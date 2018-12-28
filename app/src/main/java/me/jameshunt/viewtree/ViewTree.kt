@@ -17,6 +17,8 @@ object ViewTree {
             Modify()
 
         data class Overlay(val layoutId: LayoutId) : Modify()
+
+        var initAction: () -> Unit = {}
     }
 
     private var rootView: WeakReference<FrameLayout>? = null
@@ -26,7 +28,8 @@ object ViewTree {
         this.rootView = WeakReference(rootView)
     }
 
-    fun modifyTree(modify: Modify) {
+    fun modifyTree(modify: Modify, pushToStack: Boolean = true, initAction: () -> Unit = modify.initAction) {
+        modify.initAction = initAction
         when (modify) {
             is Modify.Replace -> {
                 val rootView = this.rootView?.get()!!
@@ -77,12 +80,59 @@ object ViewTree {
             is Modify.Overlay -> TODO()
         }
 
-        this.modifyStack.push(modify)
+        if (pushToStack) {
+            this.modifyStack.push(modify)
+        }
+
+        initAction()
     }
 
     fun pop() {
-        when(val modify = this.modifyStack.pop()) {
-            is Modify.Replace -> TODO()
+        /**
+         * for wrap existing. find a replace going all the way back to the same root, and build view up from there
+         */
+
+
+        when (val modify = this.modifyStack.pop()) {
+            is Modify.Replace -> {
+
+                this.modifyStack
+                    .reversed()
+                    .firstOrNull {
+                        when (it) {
+                            is Modify.Replace -> it.containerViewId == modify.containerViewId
+                            is Modify.WrapExisting -> true //TODO()
+                            is Modify.Overlay -> TODO()
+                        }
+                    }
+                    ?.let { firstModify ->
+                        when (firstModify) {
+                            is Modify.Replace -> modifyTree(firstModify, pushToStack = false)
+                            is Modify.WrapExisting -> {
+
+                                //todo: this section is very much a work in progress
+
+                                val startFromHere = this.modifyStack
+                                    .reversed()
+                                    .filter { it is Modify.Replace }
+                                    .map { it as Modify.Replace }
+                                    .firstOrNull {
+                                        it.containerViewId == firstModify.viewIdToWrap
+                                    }
+
+                                (this.modifyStack.indexOf(startFromHere) until this.modifyStack.size)
+                                    .map { this.modifyStack[it] }
+                                    .forEach {
+                                        modifyTree(it, pushToStack = false)
+                                    }
+                            }
+                            is Modify.Overlay -> TODO()
+                        }
+                    }
+                    ?: this.rootView?.get()!!
+                        .findViewById<FrameLayout>(modify.containerViewId)
+                        .removeAllViews()
+            }
             is Modify.WrapExisting -> {
                 val rootView = this.rootView?.get()!!
 
