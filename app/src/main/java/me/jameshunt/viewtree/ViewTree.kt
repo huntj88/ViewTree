@@ -18,7 +18,7 @@ object ViewTree {
 
         data class Overlay(val layoutId: LayoutId) : Modify()
 
-        var initAction: () -> Unit = {}
+        var initAction: (view: View) -> Unit = {}
     }
 
     private var rootView: WeakReference<FrameLayout>? = null
@@ -28,12 +28,14 @@ object ViewTree {
         this.rootView = WeakReference(rootView)
     }
 
-    fun modifyTree(modify: Modify, pushToStack: Boolean = true, initAction: () -> Unit = modify.initAction) {
+    fun shouldResume() = this.modifyStack.isNotEmpty()
+
+    fun modifyTree(modify: Modify, pushToStack: Boolean = true, initAction: View.() -> Unit = modify.initAction) {
         modify.initAction = initAction
+        val rootView = this.rootView?.get()!!
+
         when (modify) {
             is Modify.Replace -> {
-                val rootView = this.rootView?.get()!!
-
                 when (val view = rootView.findViewById<View>(modify.containerViewId)) {
                     is FrameLayout -> {
                         when (view.childCount) {
@@ -53,8 +55,6 @@ object ViewTree {
                 }
             }
             is Modify.WrapExisting -> {
-                val rootView = this.rootView?.get()!!
-
                 when (val view = rootView.findViewById<View>(modify.viewIdToWrap)) {
                     is FrameLayout -> {
                         val childrenViews = (0 until view.childCount).map { view.getChildAt(it) }
@@ -84,7 +84,7 @@ object ViewTree {
             this.modifyStack.push(modify)
         }
 
-        initAction()
+        initAction(rootView)
     }
 
     fun pop() {
@@ -152,6 +152,15 @@ object ViewTree {
                 }
             }
             is Modify.Overlay -> TODO()
+        }
+    }
+
+    fun restore() {
+
+        this.rootView?.get()!!.findViewById<FrameLayout>(R.id.initialFrameLayout).removeAllViews()
+
+        this.modifyStack.forEach {
+            ViewTree.modifyTree(modify = it, pushToStack = false)
         }
     }
 }
