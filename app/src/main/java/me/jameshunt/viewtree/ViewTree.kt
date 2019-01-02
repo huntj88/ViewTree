@@ -35,48 +35,8 @@ object ViewTree {
         val rootView = this.rootView?.get()!!
 
         when (modify) {
-            is Modify.Replace -> {
-                when (val view = rootView.findViewById<View>(modify.containerViewId)) {
-                    is FrameLayout -> {
-                        when (view.childCount) {
-                            0, 1 -> {
-                                view.removeAllViews()
-
-                                val layoutToAdd = LayoutInflater
-                                    .from(rootView.context)
-                                    .inflate(modify.replacement, view, false)
-
-                                view.addView(layoutToAdd)
-                            }
-                            else -> throw IllegalStateException()
-                        }
-                    }
-                    else -> throw IllegalStateException()
-                }
-            }
-            is Modify.WrapExisting -> {
-                when (val view = rootView.findViewById<View>(modify.viewIdToWrap)) {
-                    is FrameLayout -> {
-                        val childrenViews = (0 until view.childCount).map { view.getChildAt(it) }
-
-                        view.removeAllViews()
-
-                        val wrapperLayout = LayoutInflater
-                            .from(rootView.context)
-                            .inflate(modify.layoutToWrapWith, view, false)
-
-                        val viewPutOld = wrapperLayout.findViewById<FrameLayout>(modify.viewIdToPutOld)
-
-                        childrenViews.forEach {
-                            viewPutOld.addView(it)
-                        }
-
-                        view.addView(wrapperLayout)
-
-                    }
-                    else -> throw IllegalStateException()
-                }
-            }
+            is Modify.Replace -> modify.replace(rootView = rootView)
+            is Modify.WrapExisting -> modify.wrap(rootView = rootView)
             is Modify.Overlay -> TODO()
         }
 
@@ -87,12 +47,51 @@ object ViewTree {
         initAction(rootView)
     }
 
+    private fun Modify.Replace.replace(rootView: FrameLayout) {
+        when (val view = rootView.findViewById<View>(this.containerViewId)) {
+            is FrameLayout -> {
+                when (view.childCount) {
+                    0, 1 -> {
+                        view.removeAllViews()
+
+                        val layoutToAdd = LayoutInflater
+                            .from(rootView.context)
+                            .inflate(this.replacement, view, false)
+
+                        view.addView(layoutToAdd)
+                    }
+                    else -> throw IllegalStateException()
+                }
+            }
+            else -> throw IllegalStateException()
+        }
+    }
+
+    private fun Modify.WrapExisting.wrap(rootView: FrameLayout) {
+        when (val view = rootView.findViewById<View>(this.viewIdToWrap)) {
+            is FrameLayout -> {
+                val childrenViews = (0 until view.childCount).map { view.getChildAt(it) }
+
+                view.removeAllViews()
+
+                val wrapperLayout = LayoutInflater
+                    .from(rootView.context)
+                    .inflate(this.layoutToWrapWith, view, false)
+
+                val viewPutOld = wrapperLayout.findViewById<FrameLayout>(this.viewIdToPutOld)
+
+                childrenViews.forEach {
+                    viewPutOld.addView(it)
+                }
+
+                view.addView(wrapperLayout)
+
+            }
+            else -> throw IllegalStateException()
+        }
+    }
+
     fun pop() {
-        /**
-         * for wrap existing. find a replace going all the way back to the same root, and build view up from there
-         */
-
-
         when (val modify = this.modifyStack.pop()) {
             is Modify.Replace -> {
 
