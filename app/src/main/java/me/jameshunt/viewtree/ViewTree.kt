@@ -158,8 +158,19 @@ object ViewTree {
 
         this.rootView?.get()!!.findViewById<FrameLayout>(R.id.initialFrameLayout).removeAllViews()
 
-        this.modifyStack.forEach {
-            ViewTree.modifyTree(modify = it, pushToStack = false)
-        }
+        var keepTaking = true
+
+        this.modifyStack
+            .takeLastWhile {
+                // only go back as far as the entire root being replaced
+                if (it is Modify.Replace && it.containerViewId == R.id.initialFrameLayout) {
+                    keepTaking = false
+                    true
+                } else {
+                    keepTaking
+                }
+            }.forEach {
+                ViewTree.modifyTree(modify = it, pushToStack = false)
+            }
     }
 }
