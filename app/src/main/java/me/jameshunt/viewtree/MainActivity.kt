@@ -12,7 +12,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        ViewTree.setRootView(this.rootViewOfViewTree)
+        ViewTree.setRootView(this.initialFrameLayout)
 
         when (ViewTree.shouldResume()) {
             true -> ViewTree.restore()

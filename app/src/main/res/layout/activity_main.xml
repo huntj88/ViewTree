@@ -3,13 +3,6 @@
         xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        android:id="@+id/rootViewOfViewTree"
+        android:id="@+id/initialFrameLayout"
         android:layout_height="match_parent"
-        tools:context=".MainActivity">
-
-    <FrameLayout
-            android:id="@+id/initialFrameLayout"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-
-</FrameLayout>
+        tools:context=".MainActivity" />
