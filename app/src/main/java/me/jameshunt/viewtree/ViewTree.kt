@@ -4,7 +4,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.RelativeLayout
-import me.jameshunt.viewtree.ViewTree.overlay
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -63,18 +62,13 @@ object ViewTree {
     private fun Modify.Replace.replace(rootView: FrameLayout) {
         when (val view = rootView.findViewById<View>(this.containerViewId)) {
             is FrameLayout -> {
-                when (view.childCount) {
-                    0, 1 -> {
-                        view.removeAllViews()
+                view.removeAllViews()
 
-                        val layoutToAdd = LayoutInflater
-                            .from(rootView.context)
-                            .inflate(this.replacement, view, false)
+                val layoutToAdd = LayoutInflater
+                    .from(rootView.context)
+                    .inflate(this.replacement, view, false)
 
-                        view.addView(layoutToAdd)
-                    }
-                    else -> throw IllegalStateException()
-                }
+                view.addView(layoutToAdd)
             }
             else -> throw IllegalStateException()
         }
@@ -134,32 +128,15 @@ object ViewTree {
                     .firstOrNull {
                         when (it) {
                             is Modify.Replace -> it.containerViewId == modify.containerViewId
-                            is Modify.WrapExisting -> true //TODO()
-                            is Modify.Overlay -> TODO()
+                            is Modify.WrapExisting -> true
+                            is Modify.Overlay -> it.containerViewId == modify.containerViewId
                         }
                     }
                     ?.let { firstModify ->
                         when (firstModify) {
-                            is Modify.Replace -> modifyTree(firstModify, pushToStack = false)
-                            is Modify.WrapExisting -> {
-
-                                //todo: this section is very much a work in progress
-
-                                val startFromHere = this.modifyStack
-                                    .reversed()
-                                    .filter { it is Modify.Replace }
-                                    .map { it as Modify.Replace }
-                                    .firstOrNull {
-                                        it.containerViewId == firstModify.viewIdToWrap
-                                    }
-
-                                (this.modifyStack.indexOf(startFromHere) until this.modifyStack.size)
-                                    .map { this.modifyStack[it] }
-                                    .forEach {
-                                        modifyTree(it, pushToStack = false)
-                                    }
-                            }
-                            is Modify.Overlay -> TODO()
+                            is Modify.Replace -> applySubsetOfModifies(containerViewId = firstModify.containerViewId)
+                            is Modify.WrapExisting -> applySubsetOfModifies(containerViewId = firstModify.viewIdToWrap)
+                            is Modify.Overlay -> applySubsetOfModifies(containerViewId = firstModify.containerViewId)
                         }
                     }
                     ?: this.rootView?.get()!!
@@ -195,23 +172,29 @@ object ViewTree {
         }
     }
 
+    private fun applySubsetOfModifies(containerViewId: ViewId) {
+
+        // only go back as far as the containerView being replaced
+
+        val startFromHere = this.modifyStack
+            .reversed()
+            .filter { it is Modify.Replace }
+            .map { it as Modify.Replace }
+            .firstOrNull {
+                it.containerViewId == containerViewId
+            }
+
+        (this.modifyStack.indexOf(startFromHere) until this.modifyStack.size)
+            .map { this.modifyStack[it] }
+            .forEach {
+                modifyTree(it, pushToStack = false)
+            }
+    }
+
     fun restore() {
 
         this.rootView?.get()!!.findViewById<FrameLayout>(R.id.initialFrameLayout).removeAllViews()
 
-        var keepTaking = true
-
-        this.modifyStack
-            .takeLastWhile {
-                // only go back as far as the entire root being replaced
-                if (it is Modify.Replace && it.containerViewId == R.id.initialFrameLayout) {
-                    keepTaking = false
-                    true
-                } else {
-                    keepTaking
-                }
-            }.forEach {
-                ViewTree.modifyTree(modify = it, pushToStack = false)
-            }
+        this.applySubsetOfModifies(containerViewId = R.id.initialFrameLayout)
     }
 }
