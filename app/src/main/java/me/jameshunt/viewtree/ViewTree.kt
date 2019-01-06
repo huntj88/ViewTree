@@ -3,6 +3,7 @@ package me.jameshunt.viewtree
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.RelativeLayout
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -12,11 +13,22 @@ typealias LayoutId = Int
 object ViewTree {
 
     sealed class Modify {
-        data class Replace(val containerViewId: ViewId, val replacement: LayoutId) : Modify()
-        data class WrapExisting(val viewIdToWrap: ViewId, val layoutToWrapWith: LayoutId, val viewIdToPutOld: ViewId) :
-            Modify()
 
-        data class Overlay(val layoutId: LayoutId) : Modify()
+        data class Replace(
+            val containerViewId: ViewId,
+            val replacement: LayoutId
+        ) : Modify()
+
+        data class WrapExisting(
+            val viewIdToWrap: ViewId,
+            val layoutToWrapWith: LayoutId,
+            val viewIdToPutOld: ViewId
+        ) : Modify()
+
+        data class Overlay(
+            val containerViewId: ViewId,
+            val layoutId: LayoutId
+        ) : Modify()
 
         var initAction: (view: View) -> Unit = {}
     }
@@ -37,7 +49,7 @@ object ViewTree {
         when (modify) {
             is Modify.Replace -> modify.replace(rootView = rootView)
             is Modify.WrapExisting -> modify.wrap(rootView = rootView)
-            is Modify.Overlay -> TODO()
+            is Modify.Overlay -> modify.overlay(rootView = rootView)
         }
 
         if (pushToStack) {
@@ -50,18 +62,13 @@ object ViewTree {
     private fun Modify.Replace.replace(rootView: FrameLayout) {
         when (val view = rootView.findViewById<View>(this.containerViewId)) {
             is FrameLayout -> {
-                when (view.childCount) {
-                    0, 1 -> {
-                        view.removeAllViews()
+                view.removeAllViews()
 
-                        val layoutToAdd = LayoutInflater
-                            .from(rootView.context)
-                            .inflate(this.replacement, view, false)
+                val layoutToAdd = LayoutInflater
+                    .from(rootView.context)
+                    .inflate(this.replacement, view, false)
 
-                        view.addView(layoutToAdd)
-                    }
-                    else -> throw IllegalStateException()
-                }
+                view.addView(layoutToAdd)
             }
             else -> throw IllegalStateException()
         }
@@ -91,86 +98,106 @@ object ViewTree {
         }
     }
 
+    private fun Modify.Overlay.overlay(rootView: FrameLayout) {
+        val overlayOnto = rootView.findViewById<FrameLayout>(this.containerViewId)
+
+        val centeringView = RelativeLayout(rootView.context).apply {
+
+            val overlay = LayoutInflater
+                .from(rootView.context)
+                .inflate(this@overlay.layoutId, this, false)
+                .apply {
+                    this.layoutParams = RelativeLayout.LayoutParams(this.layoutParams).apply {
+                        addRule(RelativeLayout.CENTER_IN_PARENT)
+                    }
+                }
+
+            this.addView(overlay)
+
+        }
+
+        overlayOnto.addView(centeringView)
+    }
+
     fun pop() {
         when (val modify = this.modifyStack.pop()) {
-            is Modify.Replace -> {
-
-                this.modifyStack
-                    .reversed()
-                    .firstOrNull {
-                        when (it) {
-                            is Modify.Replace -> it.containerViewId == modify.containerViewId
-                            is Modify.WrapExisting -> true //TODO()
-                            is Modify.Overlay -> TODO()
-                        }
-                    }
-                    ?.let { firstModify ->
-                        when (firstModify) {
-                            is Modify.Replace -> modifyTree(firstModify, pushToStack = false)
-                            is Modify.WrapExisting -> {
-
-                                //todo: this section is very much a work in progress
-
-                                val startFromHere = this.modifyStack
-                                    .reversed()
-                                    .filter { it is Modify.Replace }
-                                    .map { it as Modify.Replace }
-                                    .firstOrNull {
-                                        it.containerViewId == firstModify.viewIdToWrap
-                                    }
-
-                                (this.modifyStack.indexOf(startFromHere) until this.modifyStack.size)
-                                    .map { this.modifyStack[it] }
-                                    .forEach {
-                                        modifyTree(it, pushToStack = false)
-                                    }
-                            }
-                            is Modify.Overlay -> TODO()
-                        }
-                    }
-                    ?: this.rootView?.get()!!
-                        .findViewById<FrameLayout>(modify.containerViewId)
-                        .removeAllViews()
-            }
-            is Modify.WrapExisting -> {
-                val rootView = this.rootView?.get()!!
-
-                val container = rootView.findViewById<FrameLayout>(modify.viewIdToPutOld)
-
-                val containerViews = (0 until container.childCount)
-                    .map { container.getChildAt(it) }
-
-                container.removeAllViews()
-
-                val originalPlace = rootView.findViewById<FrameLayout>(modify.viewIdToWrap)
-
-                originalPlace.removeAllViews()
-
-                containerViews.forEach {
-                    originalPlace.addView(it)
-                }
-            }
-            is Modify.Overlay -> TODO()
+            is Modify.Replace -> modify.pop()
+            is Modify.WrapExisting -> modify.pop()
+            is Modify.Overlay -> modify.pop()
         }
     }
 
-    fun restore() {
-
-        this.rootView?.get()!!.findViewById<FrameLayout>(R.id.initialFrameLayout).removeAllViews()
-
-        var keepTaking = true
-
-        this.modifyStack
-            .takeLastWhile {
-                // only go back as far as the entire root being replaced
-                if (it is Modify.Replace && it.containerViewId == R.id.initialFrameLayout) {
-                    keepTaking = false
-                    true
-                } else {
-                    keepTaking
+    private fun Modify.Replace.pop() {
+        this@ViewTree.modifyStack
+            .reversed()
+            .firstOrNull {
+                when (it) {
+                    is Modify.Replace -> it.containerViewId == this.containerViewId
+                    is Modify.WrapExisting -> true
+                    is Modify.Overlay -> it.containerViewId == this.containerViewId
                 }
-            }.forEach {
-                ViewTree.modifyTree(modify = it, pushToStack = false)
             }
+            ?.let { firstModify ->
+                when (firstModify) {
+                    is Modify.Replace -> applySubsetOfModifies(containerViewId = firstModify.containerViewId)
+                    is Modify.WrapExisting -> applySubsetOfModifies(containerViewId = firstModify.viewIdToWrap)
+                    is Modify.Overlay -> applySubsetOfModifies(containerViewId = firstModify.containerViewId)
+                }
+            }
+            ?: this@ViewTree.rootView?.get()!!
+                .findViewById<FrameLayout>(this.containerViewId)
+                .removeAllViews()
+    }
+
+    private fun Modify.WrapExisting.pop() {
+        val rootView = this@ViewTree.rootView?.get()!!
+
+        val container = rootView.findViewById<FrameLayout>(this.viewIdToPutOld)
+
+        val containerViews = (0 until container.childCount)
+            .map { container.getChildAt(it) }
+
+        container.removeAllViews()
+
+        val originalPlace = rootView.findViewById<FrameLayout>(this.viewIdToWrap)
+
+        originalPlace.removeAllViews()
+
+        containerViews.forEach {
+            originalPlace.addView(it)
+        }
+    }
+
+    private fun Modify.Overlay.pop() {
+        val rootView = this@ViewTree.rootView?.get()!!
+        val container = rootView.findViewById<FrameLayout>(this.containerViewId)
+
+        val overlay = container.getChildAt(container.childCount - 1)
+
+        container.removeView(overlay)
+    }
+
+    private fun applySubsetOfModifies(containerViewId: ViewId) {
+
+        // only go back as far as the containerView being replaced
+
+        val startFromHere = this.modifyStack
+            .reversed()
+            .filter { it is Modify.Replace }
+            .map { it as Modify.Replace }
+            .firstOrNull {
+                it.containerViewId == containerViewId
+            }
+
+        (this.modifyStack.indexOf(startFromHere) until this.modifyStack.size)
+            .map { this.modifyStack[it] }
+            .forEach {
+                modifyTree(it, pushToStack = false)
+            }
+    }
+
+    fun restore() {
+        this.rootView?.get()!!.findViewById<FrameLayout>(R.id.initialFrameLayout).removeAllViews()
+        this.applySubsetOfModifies(containerViewId = R.id.initialFrameLayout)
     }
 }
