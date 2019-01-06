@@ -4,7 +4,6 @@ import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.TextView
 import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
@@ -15,7 +14,7 @@ class MainActivity : AppCompatActivity() {
 
         ViewTree.setRootView(this.initialFrameLayout)
 
-        when (ViewTree.shouldResume()) {
+        when (ViewTree.shouldRestore()) {
             true -> ViewTree.restore()
             false -> setupTree()
         }
