@@ -29,9 +29,14 @@ class MainActivity : AppCompatActivity() {
         ViewTree.modifyTree(modify1) {
 
             this.findViewById<Button>(R.id.button).setOnClickListener {
-                val modify2 = ViewTree.Modify.Replace(
-                    containerViewId = R.id.bottomView,
-                    replacement = R.layout.view_form
+//                val modify2 = ViewTree.Modify.Replace(
+//                    containerViewId = R.id.bottomView,
+//                    replacement = R.layout.view_form
+//                )
+
+                val modify2 = ViewTree.Modify.Overlay(
+                    containerViewId = R.id.initialFrameLayout,
+                    layoutId = R.layout.view_overlay
                 )
 
                 ViewTree.modifyTree(modify2) {

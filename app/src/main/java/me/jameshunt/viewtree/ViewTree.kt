@@ -3,6 +3,8 @@ package me.jameshunt.viewtree
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.RelativeLayout
+import me.jameshunt.viewtree.ViewTree.overlay
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -12,11 +14,22 @@ typealias LayoutId = Int
 object ViewTree {
 
     sealed class Modify {
-        data class Replace(val containerViewId: ViewId, val replacement: LayoutId) : Modify()
-        data class WrapExisting(val viewIdToWrap: ViewId, val layoutToWrapWith: LayoutId, val viewIdToPutOld: ViewId) :
-            Modify()
 
-        data class Overlay(val layoutId: LayoutId) : Modify()
+        data class Replace(
+            val containerViewId: ViewId,
+            val replacement: LayoutId
+        ) : Modify()
+
+        data class WrapExisting(
+            val viewIdToWrap: ViewId,
+            val layoutToWrapWith: LayoutId,
+            val viewIdToPutOld: ViewId
+        ) : Modify()
+
+        data class Overlay(
+            val containerViewId: ViewId,
+            val layoutId: LayoutId
+        ) : Modify()
 
         var initAction: (view: View) -> Unit = {}
     }
@@ -37,7 +50,7 @@ object ViewTree {
         when (modify) {
             is Modify.Replace -> modify.replace(rootView = rootView)
             is Modify.WrapExisting -> modify.wrap(rootView = rootView)
-            is Modify.Overlay -> TODO()
+            is Modify.Overlay -> modify.overlay(rootView = rootView)
         }
 
         if (pushToStack) {
@@ -89,6 +102,27 @@ object ViewTree {
             }
             else -> throw IllegalStateException()
         }
+    }
+
+    private fun Modify.Overlay.overlay(rootView: FrameLayout) {
+        val overlayOnto = rootView.findViewById<FrameLayout>(this.containerViewId)
+
+        val centeringView = RelativeLayout(rootView.context).apply {
+
+            val overlay = LayoutInflater
+                .from(rootView.context)
+                .inflate(this@overlay.layoutId, this, false)
+                .apply {
+                    this.layoutParams = RelativeLayout.LayoutParams(this.layoutParams).apply {
+                        addRule(RelativeLayout.CENTER_IN_PARENT)
+                    }
+                }
+
+            this.addView(overlay)
+
+        }
+
+        overlayOnto.addView(centeringView)
     }
 
     fun pop() {
@@ -150,7 +184,14 @@ object ViewTree {
                     originalPlace.addView(it)
                 }
             }
-            is Modify.Overlay -> TODO()
+            is Modify.Overlay -> {
+                val rootView = this.rootView?.get()!!
+                val container = rootView.findViewById<FrameLayout>(modify.containerViewId)
+
+                val overlay = container.getChildAt(container.childCount - 1)
+
+                container.removeView(overlay)
+            }
         }
     }
 
